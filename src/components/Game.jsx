@@ -6,6 +6,13 @@ import {
     doc,
     onSnapshot,
     updateDoc,
+    addDoc,
+    serverTimestamp,
+    query,
+    where,
+    orderBy,
+    writeBatch,
+    runTransaction,
 } from "firebase/firestore";
 
 function Game({ matchId }) {
@@ -13,6 +20,7 @@ function Game({ matchId }) {
     const [match, setMatch] = useState(null);
     const [players, setPlayers] = useState([]);
     const [score, setScore] = useState("");
+    const [shots, setShots] = useState([]);
 
     useEffect(() => {
         const unsubscribe = onSnapshot(
@@ -43,6 +51,24 @@ function Game({ matchId }) {
         return unsubscribe;
     }, []);
 
+    useEffect(() => {
+        const unsubscribe = onSnapshot(
+            query(
+                collection(db, "shots"),
+                where("matchId", "==", matchId),
+                orderBy("shotNo")
+            ),
+            (snapshot) => {
+                const list = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                setShots(list);
+            }
+        );
+        return unsubscribe;
+    }, [matchId]);
+
     const player1 =
         players.find(p => p.id === match?.player1Id);
 
@@ -52,32 +78,54 @@ function Game({ matchId }) {
     const currentPlayer =
         players.find(p => p.id === match?.currentPlayerId);
 
+    // 次のMatch状態を作成する
+    function createNextMatch(match, inputScore) {
+        const newPlayer1Score =
+            match.currentPlayerId === match.player1Id
+                ? match.player1Score + inputScore
+                : match.player1Score;
+        const newPlayer2Score =
+            match.currentPlayerId === match.player2Id
+                ? match.player2Score + inputScore
+                : match.player2Score;
+        const newCurrentPlayerId =
+            match.currentPlayerId === match.player1Id
+                ? match.player2Id
+                : match.player1Id;
+        let newInning = match.inning;
+        if (newCurrentPlayerId === match.breakPlayerId) {
+            newInning++;
+        }
+        return {
+            player1Score: newPlayer1Score,
+            player2Score: newPlayer2Score,
+            currentPlayerId: newCurrentPlayerId,
+            inning: newInning
+        };
+    }
+
     // 勝敗判定    
-    function judgeWinner(
-        match,
-        newPlayer1Score,
-        newPlayer2Score,
-        newInning
-    ) {
+    function judgeWinner(currentMatch , nextMatch )
+    {
         const player1Win =
-            newPlayer1Score >= match.player1WinningScore;
+            nextMatch.player1Score >= currentMatch.player1WinningScore;
         const player2Win =
-            newPlayer2Score >= match.player2WinningScore;
+            nextMatch.player2Score >= currentMatch.player2WinningScore;
         const draw =
-            newInning > match.maxInning &&
+            nextMatch.inning > currentMatch.maxInning &&
             !player1Win &&
             !player2Win;
 
         if (player1Win) {
             return {
                 status: "win",
-                winnerId: match.player1Id
+                winnerId: currentMatch.player1Id
             };
         }
         if (player2Win) {
             return {
                 status: "win",
-                winnerId: match.player2Id
+                winnerId: currentMatch.player2Id
             };
         }
 
@@ -99,61 +147,58 @@ function Game({ matchId }) {
         // プレイ中じゃない試合は即終了
         if (match.status !== "playing") { return; }
 
+        const matchRef = doc(db, "matches", match.id);
         const point = Number(score);
 
-        let newPlayer1Score = match.player1Score;
-        let newPlayer2Score = match.player2Score;
-
-        // スコア更新
-        if (match.currentPlayerId === match.player1Id) {
-            newPlayer1Score += point;
-        } else {
-            newPlayer2Score += point;
-        }
-        let newCurrentPlayerId;
-        let newInning = match.inning;
-
-        // イニング更新
-        if (match.currentPlayerId === match.player1Id) {
-            newCurrentPlayerId = match.player2Id;
-        } else {
-            newCurrentPlayerId = match.player1Id;
-        }
-        if (newCurrentPlayerId === match.player1Id) {
-            newInning++;
-        }
-
-        // 勝利判定
-        const result = judgeWinner(
-            match,
-            newPlayer1Score,
-            newPlayer2Score,
-            newInning
-        );
-        const newStatus = result.status;
-        const newWinnerId = result.winnerId;
-
-        console.log(newPlayer1Score);
-        console.log(newPlayer2Score);
-
         // firestoreへ保存
-        await updateDoc(
-            doc(db, "matches", match.id),
-            {
-                player1Score: newPlayer1Score,
-                player2Score: newPlayer2Score,
-                currentPlayerId: newCurrentPlayerId,
-                inning: newInning,
-                status: newStatus,
-                winnerId: newWinnerId,
+        await runTransaction(db, async (transaction) => {
+            const matchSnapshot = await transaction.get(matchRef);
+
+            if (!matchSnapshot.exists()) {
+                throw new Error("Matchが存在しません");
             }
-        );
+
+            const currentMatch = {
+                id: matchSnapshot.id,
+                ...matchSnapshot.data()
+            };
+            
+            // 次のMatch状態を作成
+            const nextMatch = createNextMatch(currentMatch, point);
+            
+            //console.log(newPlayer1Score);
+            //console.log(newPlayer2Score);
+            const newShotNo = currentMatch.lastShotNo + 1;
+
+            // 勝利判定
+            const winner = judgeWinner(
+                currentMatch,
+                nextMatch
+            );
+
+            // Shotを作成
+            const shotRef = doc(collection(db, "shots"));
+            transaction.set(shotRef, {
+                matchId: currentMatch.id,
+                shotNo: newShotNo,
+                playerId: currentMatch.currentPlayerId,
+                inning: currentMatch.inning,
+                score: point,
+                createdAt: serverTimestamp()
+            });
+            transaction.update(matchRef, {
+                ...nextMatch,
+                status: winner.status,
+                winnerId: winner.winnerId,
+                lastShotNo: newShotNo,
+            });
+        });
         setScore("");
     }
 
     return (
         <div>
-            <h2>ゲーム画面</h2>
+            <h2>Match</h2>
             <div style={{ marginBottom: "20px" }}>
                 <div>
                     {player1?.name}
@@ -196,7 +241,7 @@ function Game({ matchId }) {
 
             <div style={{ marginTop: "30px" }}>
                 <div>
-                    今回の得点
+                    current score
                 </div>
                 <input
                     type="number"
@@ -211,14 +256,14 @@ function Game({ matchId }) {
                     onClick={registerScore}
                     disabled={match?.status !== "playing" }
                 >
-                    登録
+                    Register Score
                 </button>
             </div>
 
             {
                 match?.status === "win" && (
                     <h2 style={{ color: "red" }}>
-                        🏆 勝者：
+                        🏆 Winner:
                         {
                             players.find(p => p.id === match.winnerId)?.name
                         }
@@ -229,10 +274,35 @@ function Game({ matchId }) {
             {
                 match?.status === "draw" && (
                     <h2 style={{ color: "blue" }}>
-                        引き分け
+                        draw
                     </h2>
                 )
-            }      
+            }
+
+            <div style={{ marginTop: "20px" }}>
+                Shot数 : {shots.length}
+            </div>
+
+            <div style={{ marginTop: "20px" }}>
+                <h3>Shot History</h3>
+                {
+                    shots.map((shot) => {
+                        const player =
+                            players.find(p => p.id === shot.playerId);
+                        return (
+                            <div key={shot.id}>
+                                #{shot.shotNo}
+                                {" "}
+                                {player?.name}
+                                {" "}
+                                +{shot.score}
+                                {" "}
+                                (Inning {shot.inning})
+                            </div>
+                        );
+                    })
+                }
+            </div>
         </div>
     );
 }

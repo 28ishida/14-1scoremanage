@@ -32,17 +32,17 @@ function MatchStart({ onStart }) {
     async function startMatch() {
 
         if (player1 === "") {
-            alert("Player1を選択してください");
+            alert("Please select Player1");
             return;
         }
 
         if (player2 === "") {
-            alert("Player2を選択してください");
+            alert("Please select Player2");
             return;
         }
 
         if (player1 === player2) {
-            alert("同じプレイヤーは選択できません");
+            alert("You cannot select the same player");
             return;
         }
 
@@ -72,11 +72,12 @@ function MatchStart({ onStart }) {
             status: "playing",
             winnerId: null,
             maxInning: 15,
-            createdAt: serverTimestamp()
+            createdAt: serverTimestamp(),
+            lastShotNo : 0,
         });
 
         onStart(docRef.id);
-        alert("試合を開始しました");
+        alert("Match started");
     }
     
     return (
@@ -88,7 +89,7 @@ function MatchStart({ onStart }) {
                 value={player1}
                 onChange={(e) => setPlayer1(e.target.value)}
             >
-                <option value="">選択してください</option>
+                <option value="">Please select</option>
                 {
                     players.map(player => (
                         <option
@@ -107,7 +108,7 @@ function MatchStart({ onStart }) {
                 value={player2}
                 onChange={(e) => setPlayer2(e.target.value)}
             >
-                <option value="">選択してください</option>
+                <option value="">Please select</option>
                 {
                     players.map(player => (
                         <option
@@ -121,7 +122,7 @@ function MatchStart({ onStart }) {
             </select>
 
             <div style={{ marginTop: "20px" }}>
-                <h3>Winning Score</h3>
+                <h3>w-Score</h3>
                 <div>
                     Player1 :
                     {
@@ -137,7 +138,7 @@ function MatchStart({ onStart }) {
             </div>
             <div style={{ marginTop: "20px" }}>
 
-                <h3>先攻</h3>
+                <h3>Break Player</h3>
                 <label>
                     <input
                         type="radio"
@@ -160,7 +161,7 @@ function MatchStart({ onStart }) {
             </div>            
             <div style={{ marginTop: "20px" }}>
                 <button onClick={startMatch}>
-                    試合開始
+                    Start Match
                 </button>
             </div>
         </div>

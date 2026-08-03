@@ -12,10 +12,13 @@ function App() {
     return (
         <div>
 
-            <h1>14-1 Score System</h1>
+            <h1>React test System</h1>
 
             <Menu onSelect={setCurrentScreen} />
-            {currentScreen === "players" && <PlayerList />}
+            {
+                currentScreen === "players" && 
+                <PlayerList 
+                />}
             {
                 currentScreen === "match" && (
                     <MatchStart

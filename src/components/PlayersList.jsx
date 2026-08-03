@@ -31,21 +31,16 @@ function PlayerList() {
     }, []);
 
     async function loadPlayers() {
-
         const snapshot = await getDocs(collection(db, "players"));
-
         const list = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         }));
-
         setPlayers(list);
     }
 
     async function addPlayer() {
-
         await addDoc(collection(db, "players"), {
-
             name: name,
             winningScore: Number(winningScore),
         });
@@ -56,10 +51,9 @@ function PlayerList() {
     }
 
     async function deletePlayer(id) {
-        if (!window.confirm("削除しますか?")){
+        if (!window.confirm("Are you sure you want to delete?")){
             return;
         }
-
         await deleteDoc(doc(db, "players", id));
     }
 
@@ -82,18 +76,18 @@ function PlayerList() {
     return (
         <div>
 
-            <h2>プレイヤー一覧</h2>
+            <h2>Player List</h2>
             
             <div>
 
-                名前  
+                Name
 
                 <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                 />
 
-                winningScore
+                w-Score
 
                 <input
                     value={winningScore}
@@ -103,30 +97,27 @@ function PlayerList() {
                 <button
                     onClick={editingId ? updatePlayer : addPlayer}
                 >
-                    {editingId ? "更新" : "追加"}
+                    {editingId ? "Update" : "Add"}
                 </button>
             </div>
             <ul>
-
                 {players.map(player => (
                     <li key={player.id}>
-                        {player.name}　
-                        winningScore {player.winningScore}
+                        {player.name}
+                        w-Score {player.winningScore}
                         <button
                             onClick={() => startEdit(player)}
                         >
-                            編集
+                            Edit
                         </button>
                         <button 
                             onClick={() => deletePlayer(player.id)}
                         >
-                            削除
+                            Delete
                         </button>
                     </li>
                 ))}
-
             </ul>
-
         </div>
     );
 }

@@ -3,7 +3,9 @@ import { db } from "../firebase";
 
 import {
     collection,
-    onSnapshot
+    onSnapshot,
+    query,
+    orderBy,
 } from "firebase/firestore";
 
 function MatchList({ onOpen }) {
@@ -27,7 +29,10 @@ function MatchList({ onOpen }) {
 
     useEffect(() => {
         const unsubscribe = onSnapshot(
-            collection(db, "matches"),
+            query(
+                collection(db, "matches"),
+                orderBy("createdAt", "desc")
+            ),
             (snapshot) => {
                 const list = snapshot.docs.map(doc => ({
                     id: doc.id,
@@ -41,7 +46,7 @@ function MatchList({ onOpen }) {
 
     return (
         <div>
-            <h2>試合一覧</h2>
+            <h2>Match List</h2>
             {
                 matches.map(match => (
                     <div
@@ -72,7 +77,7 @@ function MatchList({ onOpen }) {
                             <button
                                 onClick={() => onOpen(match.id)}
                             >
-                                開く
+                                Open
                             </button>
                         </div>
                     </div>

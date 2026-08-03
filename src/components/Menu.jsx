@@ -4,18 +4,21 @@ function Menu({ onSelect }) {
         <div style={{ marginBottom: "20px" }}>
 
             <button onClick={() => onSelect("players")}>
-                プレイヤー管理
+                Player Management
             </button>
 
             <button
                 onClick={() => onSelect("match")}
                 style={{ marginLeft: "10px" }}
             >
-                試合開始
+                Start Match
             </button>
             
-            <button onClick={() => onSelect("matches")}>
-                試合一覧
+            <button 
+                onClick={() => onSelect("matches")}
+                style={{ marginLeft: "10px" }}
+            >
+                Match List
             </button>
         </div>
     );
