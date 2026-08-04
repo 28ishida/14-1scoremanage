@@ -60,7 +60,9 @@ function MatchStart({ onStart }) {
         const docRef = await addDoc(collection(db, "matches"), {
 
             player1Id: player1,
+            player1Name : selectedPlayer1.name,
             player2Id: player2,
+            player2Name : selectedPlayer2.name,
 
             player1WinningScore: selectedPlayer1.winningScore,
             player2WinningScore: selectedPlayer2.winningScore,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { db } from "../firebase";
-
+import { createNextState, judgeWinner, createInitialState, createCurrentState } from "../logic/gameLogic";
 import {
     collection,
     doc,
@@ -13,6 +13,8 @@ import {
     orderBy,
     writeBatch,
     runTransaction,
+    getDoc,
+    getDocs,
 } from "firebase/firestore";
 
 function Game({ matchId }) {
@@ -52,20 +54,19 @@ function Game({ matchId }) {
     }, []);
 
     useEffect(() => {
-        const unsubscribe = onSnapshot(
-            query(
-                collection(db, "shots"),
-                where("matchId", "==", matchId),
-                orderBy("shotNo")
-            ),
-            (snapshot) => {
-                const list = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                setShots(list);
-            }
+        if (!matchId) return;
+        const q = query(
+            collection(db, "shots"),
+            where("matchId", "==", matchId),
+            orderBy("shotNo")
         );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const list = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setShots(list);
+        });
         return unsubscribe;
     }, [matchId]);
 
@@ -77,70 +78,6 @@ function Game({ matchId }) {
 
     const currentPlayer =
         players.find(p => p.id === match?.currentPlayerId);
-
-    // 次のMatch状態を作成する
-    function createNextMatch(match, inputScore) {
-        const newPlayer1Score =
-            match.currentPlayerId === match.player1Id
-                ? match.player1Score + inputScore
-                : match.player1Score;
-        const newPlayer2Score =
-            match.currentPlayerId === match.player2Id
-                ? match.player2Score + inputScore
-                : match.player2Score;
-        const newCurrentPlayerId =
-            match.currentPlayerId === match.player1Id
-                ? match.player2Id
-                : match.player1Id;
-        let newInning = match.inning;
-        if (newCurrentPlayerId === match.breakPlayerId) {
-            newInning++;
-        }
-        return {
-            player1Score: newPlayer1Score,
-            player2Score: newPlayer2Score,
-            currentPlayerId: newCurrentPlayerId,
-            inning: newInning
-        };
-    }
-
-    // 勝敗判定    
-    function judgeWinner(currentMatch , nextMatch )
-    {
-        const player1Win =
-            nextMatch.player1Score >= currentMatch.player1WinningScore;
-        const player2Win =
-            nextMatch.player2Score >= currentMatch.player2WinningScore;
-        const draw =
-            nextMatch.inning > currentMatch.maxInning &&
-            !player1Win &&
-            !player2Win;
-
-        if (player1Win) {
-            return {
-                status: "win",
-                winnerId: currentMatch.player1Id
-            };
-        }
-        if (player2Win) {
-            return {
-                status: "win",
-                winnerId: currentMatch.player2Id
-            };
-        }
-
-        if (draw) {
-            return {
-                status: "draw",
-                winnerId: null
-            };
-        }
-
-        return {
-            status: "playing",
-            winnerId: null
-        };
-    }
 
     async function registerScore() {
         
@@ -162,18 +99,18 @@ function Game({ matchId }) {
                 id: matchSnapshot.id,
                 ...matchSnapshot.data()
             };
-            
+
+            const currentState = createCurrentState(currentMatch);
+
             // 次のMatch状態を作成
-            const nextMatch = createNextMatch(currentMatch, point);
+            const nextState = createNextState(currentState, point);
             
-            //console.log(newPlayer1Score);
-            //console.log(newPlayer2Score);
             const newShotNo = currentMatch.lastShotNo + 1;
 
             // 勝利判定
             const winner = judgeWinner(
                 currentMatch,
-                nextMatch
+                nextState
             );
 
             // Shotを作成
@@ -187,13 +124,64 @@ function Game({ matchId }) {
                 createdAt: serverTimestamp()
             });
             transaction.update(matchRef, {
-                ...nextMatch,
+                ...nextState,
                 status: winner.status,
                 winnerId: winner.winnerId,
                 lastShotNo: newShotNo,
             });
         });
         setScore("");
+    }
+
+    // undo
+    async function undoLastShot() {
+    }
+
+    // matchを再構築する
+    async function rebuildMatch(matchId) {
+
+        // Match取得
+        const matchRef = doc(db, "matches", matchId);
+        const matchSnapshot = await getDoc(matchRef);
+
+        if (!matchSnapshot.exists()) {
+            throw new Error("Matchが存在しません");
+        }
+
+        const match = {
+            id: matchSnapshot.id,
+            ...matchSnapshot.data()
+        };
+
+        // Shot取得
+        const q = query(
+            collection(db, "shots"),
+            where("matchId", "==", matchId),
+            orderBy("shotNo")
+        );
+
+        const shotSnapshot = await getDocs(q);
+
+        const shots = shotSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        let state = createInitialState(match);
+        for (const shot of shots) {
+            state = createNextState(state, shot.score);
+        }
+
+        const winner = judgeWinner(match, state);
+        
+        await updateDoc(matchRef, {
+            player1Score: state.player1Score,
+            player2Score: state.player2Score,
+            currentPlayerId: state.currentPlayerId,
+            inning: state.inning,
+            status: winner.status,
+            winnerId: winner.winnerId
+        });
     }
 
     return (
@@ -258,6 +246,15 @@ function Game({ matchId }) {
                 >
                     Register Score
                 </button>
+                <button onClick={() => rebuildMatch(match.id)}>
+                    Rebuild Test
+                </button>
+
+                <div>
+                    <button onClick={undoLastShot}>
+                        Undo
+                    </button>
+                </div>
             </div>
 
             {
@@ -301,6 +298,32 @@ function Game({ matchId }) {
                             </div>
                         );
                     })
+                }
+                <h3>Shot履歴</h3>
+                {
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Player</th>
+                                <th>Score</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {shots.map((shot) => (
+                                <tr key={shot.id}>
+                                    <td>{shot.shotNo}</td>
+                                    <td>
+                                        {shot.playerId === match.player1Id
+                                            ? match.player1Name
+                                            : match.player2Name}
+                                    </td>
+                                    <td>{shot.score}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>            
                 }
             </div>
         </div>
