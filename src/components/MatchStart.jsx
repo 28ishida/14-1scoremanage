@@ -29,6 +29,20 @@ function MatchStart({ onStart }) {
         return unsubscribe;
     }, []);
 
+    // デバッグ用
+    useEffect(() => {
+        if (players.length > 0 && !player1) {
+            setPlayer1(players[0].id);
+        }
+    }, [players, player1]);
+
+    // デバッグ用
+    useEffect(() => {
+        if (players.length > 1 && !player2) {
+            setPlayer2(players[1].id);
+        }
+    }, [players, player2]);
+
     async function startMatch() {
 
         if (player1 === "") {
@@ -72,15 +86,16 @@ function MatchStart({ onStart }) {
             currentPlayerId: breakPlayerId,
             inning: 1,
             remainingBalls: 15,
+            runningScore: 0,
             status: "playing",
             winnerId: null,
             maxInning: 15,
             createdAt: serverTimestamp(),
-            lastShotNo : 0,
+            lastTurnNo : 0,
         });
 
         onStart(docRef.id);
-        alert("Match started");
+        //alert("Match started");
     }
     
     return (

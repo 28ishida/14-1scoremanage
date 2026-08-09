@@ -22,7 +22,8 @@ function Game({ matchId }) {
     const [match, setMatch] = useState(null);
     const [players, setPlayers] = useState([]);
     const [remainingBalls, setRemainingBalls] = useState("");
-    const [shots, setShots] = useState([]);
+    const [turns, setTurns] = useState([]);
+    const [tableSituation, setTableSituation] = useState("");
 
     useEffect(() => {
         const unsubscribe = onSnapshot(
@@ -56,16 +57,16 @@ function Game({ matchId }) {
     useEffect(() => {
         if (!matchId) return;
         const q = query(
-            collection(db, "shots"),
+            collection(db, "turns"),
             where("matchId", "==", matchId),
-            orderBy("shotNo")
+            orderBy("turnNo")
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const list = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
-            setShots(list);
+            setTurns(list);
         });
         return unsubscribe;
     }, [matchId]);
@@ -79,7 +80,38 @@ function Game({ matchId }) {
     const currentPlayer =
         players.find(p => p.id === match?.currentPlayerId);
 
-    async function registerScore() {
+    async function rackBalls() {
+        // プレイ中じゃない試合は終了
+        if (match.status !== "playing") {
+            return;
+        }
+        const matchRef = doc(db, "matches", match.id);
+        await runTransaction(db, async (transaction) => {
+            const matchSnapshot = await transaction.get(matchRef);
+            if (!matchSnapshot.exists()) {
+                throw new Error("Matchが存在しません");
+            }
+            const currentMatch = {
+                id: matchSnapshot.id,
+                ...matchSnapshot.data()
+            };
+            const currentRemainingBalls =
+                currentMatch.remainingBalls;
+
+            const currentRunningScore =
+                currentMatch.runningScore ?? 0;
+
+            setTableSituation("+");
+
+            transaction.update(matchRef, {
+                remainingBalls: 15,
+                runningScore:
+                    currentRunningScore + (currentRemainingBalls - 1)
+            });
+        });
+    }        
+
+    async function registerTurn() {
         
         // プレイ中じゃない試合は即終了
         if (match.status !== "playing") { return; }
@@ -100,13 +132,14 @@ function Game({ matchId }) {
 
             const currentRemainingBalls = currentMatch.remainingBalls;
             const nextRemainingBalls = Number(remainingBalls);
-            const point = currentRemainingBalls - nextRemainingBalls;
+            const currentRunningScore = currentMatch.runningScore;
+            const point = currentRunningScore + currentRemainingBalls - nextRemainingBalls;
             const currentState = createCurrentState(currentMatch);
 
             // 次のMatch状態を作成
             const nextState = createNextState(currentState, point);
             
-            const newShotNo = currentMatch.lastShotNo + 1;
+            const newTurnNo = currentMatch.lastTurnNo + 1;
 
             // 勝利判定
             const winner = judgeWinner(
@@ -114,11 +147,11 @@ function Game({ matchId }) {
                 nextState
             );
 
-            // Shotを作成
-            const shotRef = doc(collection(db, "shots"));
+            // Turnを作成
+            const shotRef = doc(collection(db, "turns"));
             transaction.set(shotRef, {
                 matchId: currentMatch.id,
-                shotNo: newShotNo,
+                turnNo: newTurnNo,
                 playerId: currentMatch.currentPlayerId,
                 inning: currentMatch.inning,
                 score: point,
@@ -130,14 +163,15 @@ function Game({ matchId }) {
                 remainingBalls: nextRemainingBalls,
                 status: winner.status,
                 winnerId: winner.winnerId,
-                lastShotNo: newShotNo,
+                lastTurnNo: newTurnNo,
             });
         });
         setRemainingBalls("");
+        setTableSituation(remainingBalls-15);
     }
 
     // undo
-    async function undoLastShot() {
+    async function undoLastTurn() {
     }
 
     // matchを再構築する
@@ -156,23 +190,23 @@ function Game({ matchId }) {
             ...matchSnapshot.data()
         };
 
-        // Shot取得
+        // Turn取得
         const q = query(
-            collection(db, "shots"),
+            collection(db, "turns"),
             where("matchId", "==", matchId),
-            orderBy("shotNo")
+            orderBy("turnNo")
         );
 
-        const shotSnapshot = await getDocs(q);
+        const turnSnapshot = await getDocs(q);
 
-        const shots = shotSnapshot.docs.map(doc => ({
+        const turns = turnSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         }));
 
         let state = createInitialState(match);
-        for (const shot of shots) {
-            state = createNextState(state, shot.score);
+        for (const turn of turns) {
+            state = createNextState(state, turn.score);
         }
 
         const winner = judgeWinner(match, state);
@@ -244,17 +278,29 @@ function Game({ matchId }) {
 
             <div style={{ marginTop: "20px" }}>
                 <button
-                    onClick={registerScore}
+                    onClick={registerTurn}
                     disabled={match?.status !== "playing" }
                 >
                     Register Score
                 </button>
+                <button
+                    onClick={rackBalls}
+                >
+                    Rack
+                </button>
+                <div>
+                    Remaining Balls : {match?.remainingBalls}
+                </div>
+
+                <div>
+                    Running Score : {match?.runningScore}
+                </div>
                 <button onClick={() => rebuildMatch(match.id)}>
                     Rebuild Test
                 </button>
 
                 <div>
-                    <button onClick={undoLastShot}>
+                    <button onClick={undoLastTurn}>
                         Undo
                     </button>
                 </div>
@@ -279,48 +325,138 @@ function Game({ matchId }) {
                 )
             }
 
-            <div style={{ marginTop: "20px" }}>
-                Shot数 : {shots.length}
-            </div>
+            <div style={{ marginTop: "30px" }}>
+                <h3>Score Sheet</h3>
+                <table border="1" cellPadding="8">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            {
+                                Array.from(
+                                    { length: match?.inning || 0 },
+                                    (_, index) => (
+                                        <th key={index}>
+                                            {index + 1}
+                                        </th>
+                                    )
+                                )
+                            }
+                        </tr>
+                    </thead>
 
-            <div style={{ marginTop: "20px" }}>
-                <h3>Shot履歴</h3>
-                {
-                    <table style={{
-                        width: "100%",
-                        maxwidth: "200px",
-                        borderCollapse: "collapse"
-                    }}>
-                        <thead>
-                            <tr>
-                                <th style={{ border: "1px solid #ccc" }}>No</th>
-                                <th style={{ border: "1px solid #ccc" }}>Player</th>
-                                <th style={{ border: "1px solid #ccc" }}>Score</th>
-                            </tr>
-                        </thead>
+                    <tbody>
+                        {/* Player 1 Score */}
+                        <tr>
+                            <th>
+                                {match?.player1Name}
+                            </th>
 
-                        <tbody>
-                            {shots.map((shot) => (
-                                <tr key={shot.id}>
-                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {shot.shotNo}
-                                    </td>
-                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {shot.playerId === match.player1Id
-                                            ? match.player1Name
-                                            : match.player2Name}
-                                    </td>
-                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {shot.score}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>            
-                }
+                            {
+                                Array.from(
+                                    { length: match?.inning || 0 },
+                                    (_, index) => {
+                                        const inning = index + 1;
+
+                                        const turn = turns.find(
+                                            turn =>
+                                                turn.playerId === match.player1Id &&
+                                                turn.inning === inning
+                                        );
+
+                                        return (
+                                            <td key={inning}>
+                                                {turn?.score ?? ""}
+                                            </td>
+                                        );
+                                    }
+                                )
+                            }
+                        </tr>
+
+                        {/* Player 1 Remain */}
+                        <tr>
+                            <th>Table situation</th>
+                            {
+                                Array.from(
+                                    { length: match?.inning || 0 },
+                                    (_, index) => {
+                                        const inning = index + 1;
+
+                                        const turn = turns.find(
+                                            turn =>
+                                                turn.playerId === match.player1Id &&
+                                                turn.inning === inning
+                                        );
+
+                                        return (
+                                            <td key={inning}>
+                                                  {tableSituation}
+                                            </td>
+                                        );
+                                    }
+                                )
+                            }
+                        </tr>
+                        {/* Player 2 Score */}
+                        <tr>
+                            <th>
+                                {match?.player2Name}
+                            </th>
+
+                            {
+                                Array.from(
+                                    { length: match?.inning || 0 },
+                                    (_, index) => {
+                                        const inning = index + 1;
+
+                                        const turn = turns.find(
+                                            turn =>
+                                                turn.playerId === match.player2Id &&
+                                                turn.inning === inning
+                                        );
+
+                                        return (
+                                            <td key={inning}>
+                                                {turn?.score ?? ""}
+                                            </td>
+                                        );
+                                    }
+                                )
+                            }
+                        </tr>
+
+                        {/* Player 2 Remain */}
+                        <tr>
+                            <th>Table situation</th>
+
+                            {
+                                Array.from(
+                                    { length: match?.inning || 0 },
+                                    (_, index) => {
+                                        const inning = index + 1;
+
+                                        const turn = turns.find(
+                                            turn =>
+                                                turn.playerId === match.player2Id &&
+                                                turn.inning === inning
+                                        );
+
+                                        return (
+                                            <td key={inning}>
+                                                {turn?.remainingBalls != null ? `-${15 - turn.remainingBalls}` : ""}
+                                            </td>
+                                        );
+                                    }
+                                )
+                            }
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     );
 }
+
+//                                                  {turn?.remainingBalls != null ? `-${15 - turn.remainingBalls}` : ""}
 
 export default Game;

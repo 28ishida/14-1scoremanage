@@ -10,7 +10,9 @@ export function createInitialState(match) {
         currentPlayerId: match.breakPlayerId,
         inning: 1,
         winnerId: null,
-        status: "playing"
+        status: "playing",
+        runningScore: 0,
+        remainingBalls: 15,
     };
 }
 
@@ -23,7 +25,9 @@ export function createCurrentState(match) {
         player1Score: match.player1Score,
         player2Score: match.player2Score,
         currentPlayerId: match.currentPlayerId,
-        inning: match.inning
+        inning: match.inning,
+        runningScore: match.runningScore ?? 0,
+        remainingBalls: match.remainingBalls
     };
 }
 
@@ -51,7 +55,9 @@ export function createNextState(state, inputScore) {
         player1Score: newPlayer1Score,
         player2Score: newPlayer2Score,
         currentPlayerId: newCurrentPlayerId,
-        inning: newInning
+        inning: newInning,
+        remainingBalls: state.remainingBalls,
+        runningScore: 0
     };
 }
 
