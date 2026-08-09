@@ -21,7 +21,7 @@ function Game({ matchId }) {
 
     const [match, setMatch] = useState(null);
     const [players, setPlayers] = useState([]);
-    const [score, setScore] = useState("");
+    const [remainingBalls, setRemainingBalls] = useState("");
     const [shots, setShots] = useState([]);
 
     useEffect(() => {
@@ -85,8 +85,6 @@ function Game({ matchId }) {
         if (match.status !== "playing") { return; }
 
         const matchRef = doc(db, "matches", match.id);
-        const point = Number(score);
-
         // firestoreへ保存
         await runTransaction(db, async (transaction) => {
             const matchSnapshot = await transaction.get(matchRef);
@@ -100,6 +98,9 @@ function Game({ matchId }) {
                 ...matchSnapshot.data()
             };
 
+            const currentRemainingBalls = currentMatch.remainingBalls;
+            const nextRemainingBalls = Number(remainingBalls);
+            const point = currentRemainingBalls - nextRemainingBalls;
             const currentState = createCurrentState(currentMatch);
 
             // 次のMatch状態を作成
@@ -121,16 +122,18 @@ function Game({ matchId }) {
                 playerId: currentMatch.currentPlayerId,
                 inning: currentMatch.inning,
                 score: point,
+                remainingBalls: nextRemainingBalls,
                 createdAt: serverTimestamp()
             });
             transaction.update(matchRef, {
                 ...nextState,
+                remainingBalls: nextRemainingBalls,
                 status: winner.status,
                 winnerId: winner.winnerId,
                 lastShotNo: newShotNo,
             });
         });
-        setScore("");
+        setRemainingBalls("");
     }
 
     // undo
@@ -229,12 +232,12 @@ function Game({ matchId }) {
 
             <div style={{ marginTop: "30px" }}>
                 <div>
-                    current score
+                    Remaining Ball :
                 </div>
                 <input
                     type="number"
-                    value={score}
-                    onChange={(e) => setScore(e.target.value)}
+                    value={remainingBalls}
+                    onChange={(e) => setRemainingBalls(e.target.value)}
                     disabled={match?.status !== "playing"}
                 />
             </div>
@@ -281,45 +284,35 @@ function Game({ matchId }) {
             </div>
 
             <div style={{ marginTop: "20px" }}>
-                <h3>Shot History</h3>
-                {
-                    shots.map((shot) => {
-                        const player =
-                            players.find(p => p.id === shot.playerId);
-                        return (
-                            <div key={shot.id}>
-                                #{shot.shotNo}
-                                {" "}
-                                {player?.name}
-                                {" "}
-                                +{shot.score}
-                                {" "}
-                                (Inning {shot.inning})
-                            </div>
-                        );
-                    })
-                }
                 <h3>Shot履歴</h3>
                 {
-                    <table>
+                    <table style={{
+                        width: "100%",
+                        maxwidth: "200px",
+                        borderCollapse: "collapse"
+                    }}>
                         <thead>
                             <tr>
-                                <th>No</th>
-                                <th>Player</th>
-                                <th>Score</th>
+                                <th style={{ border: "1px solid #ccc" }}>No</th>
+                                <th style={{ border: "1px solid #ccc" }}>Player</th>
+                                <th style={{ border: "1px solid #ccc" }}>Score</th>
                             </tr>
                         </thead>
 
                         <tbody>
                             {shots.map((shot) => (
                                 <tr key={shot.id}>
-                                    <td>{shot.shotNo}</td>
-                                    <td>
+                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
+                                        {shot.shotNo}
+                                    </td>
+                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
                                         {shot.playerId === match.player1Id
                                             ? match.player1Name
                                             : match.player2Name}
                                     </td>
-                                    <td>{shot.score}</td>
+                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
+                                        {shot.score}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>

@@ -71,6 +71,7 @@ function MatchStart({ onStart }) {
             breakPlayerId: breakPlayerId,
             currentPlayerId: breakPlayerId,
             inning: 1,
+            remainingBalls: 15,
             status: "playing",
             winnerId: null,
             maxInning: 15,
