@@ -26,6 +26,8 @@ function Game({ matchId }) {
     const [isFoul, setIsFoul] = useState(false);
     const [continusFoulCntP1, setContinusFoulCntP1] = useState(0);
     const [continusFoulCntP2, setContinusFoulCntP2] = useState(0);
+    const [tableCondition, setTableCondition] = useState("");       // 表示用
+
 
     useEffect(() => {
         const unsubscribe = onSnapshot(
@@ -102,9 +104,10 @@ function Game({ matchId }) {
 
             transaction.update(matchRef, {
                 remainingBalls: 15,
-                runningScore:
-                    currentRunningScore + (currentRemainingBalls - 1)
+                runningScore: currentRunningScore + (currentRemainingBalls - 1)
             });
+
+            setTableCondition( tableCondition + currentRemainingBalls);
         });
     }
 
