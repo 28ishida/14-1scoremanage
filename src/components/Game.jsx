@@ -25,6 +25,8 @@ function Game({ matchId }) {
     const [turns, setTurns] = useState([]);
     const [isSafty, setIsSafty] = useState(false);
     const [isFoul, setIsFoul] = useState(false);
+    const [continusFoulCntP1, setContinusFoulCntP1] = useState(0);
+    const [continusFoulCntP2, setContinusFoulCntP2] = useState(0);
 
     useEffect(() => {
         const unsubscribe = onSnapshot(
@@ -112,6 +114,32 @@ function Game({ matchId }) {
         setRemainingBalls(15);
     }
 
+    // 連続ファウルチェック
+    function checkContinusFaul(currentPlayerId, isFoul) {
+        if (currentPlayerId === match?.player1Id) {
+            if (isFoul) {
+                const newContinusFoulCntP1 = continusFoulCntP1 + 1;
+                setContinusFoulCntP1(newContinusFoulCntP1);
+                if (newContinusFoulCntP1 >= 3) {
+                    return true;
+                }
+            } else {
+                setContinusFoulCntP1(0);
+            }
+        } else if (currentPlayerId === match?.player2Id) {
+            if (isFoul) {
+                const newContinusFoulCntP2 = continusFoulCntP2 + 1;
+                setContinusFoulCntP2(newContinusFoulCntP2);
+                if (newContinusFoulCntP2 >= 3) {
+                    return true;
+                }
+            } else {
+                setContinusFoulCntP2(0);
+            }
+        }
+        return false;
+    }
+
     // ファウル計算を含む最終スコア計算
     function createFinalTurnScore(currentMatch, turnNum, point) {
 
@@ -151,9 +179,11 @@ function Game({ matchId }) {
             const nextRemainingBalls = Number(remainingBalls);
             const currentRunningScore = currentMatch.runningScore;
             const point = currentRunningScore + currentRemainingBalls - nextRemainingBalls;
-
             const currentState = createCurrentState(currentMatch);
             const newTurnNo = currentMatch.lastTurnNo + 1;
+            
+            // 連続ファールチェック
+            const isContinusFoul = checkContinusFaul( currentMatch.currentPlayerId, isFoul );
 
             // Turnを作成
             const turnRef = doc(collection(db, "matches", currentMatch.id, "turns"));
@@ -167,12 +197,15 @@ function Game({ matchId }) {
                 createdAt: serverTimestamp(),
                 isSafty: isSafty,
                 isFoul: isFoul,
+                runningScore: currentRunningScore,
+                isContinusFoul: isContinusFoul,
             });
 
             // 次のMatch状態を作成
+            const turnPoint = isFoul ? isContinusFoul ? point - 15 : point - 1 : point;
             const nextState = createNextState(
                 currentState, 
-                !isFoul ? point : createFinalTurnScore(currentMatch, currentMatch.lastTurnNo + 1, point)
+                turnPoint
             );
 
             // 勝利判定
@@ -225,8 +258,7 @@ function Game({ matchId }) {
         for (const turn of turns) {
             state = createNextState(
                 state, 
-                //createFinalTurnScore(match, turn.turnNo, turn.score)
-                !turn.isFoul ? turn.score : createFinalTurnScore(match, turn.turnNo, turn.score)
+                turn.isFoul ? turn.isContinusFoul ? turn.score - 15 : turn.score - 1 : turn.score
             );
 
             const winner = judgeWinner(match, state);
@@ -366,9 +398,11 @@ function Game({ matchId }) {
                             <tr>
                                 <th style={{ border: "1px solid #ccc" }}>No</th>
                                 <th style={{ border: "1px solid #ccc" }}>Player</th>
-                                <th style={{ border: "1px solid #ccc" }}>Foul</th>
                                 <th style={{ border: "1px solid #ccc" }}>Score</th>
+                                <th style={{ border: "1px solid #ccc" }}>Foul</th>
                                 <th style={{ border: "1px solid #ccc" }}>Safty</th>
+                                <th style={{ border: "1px solid #ccc" }}>RS</th>
+                                <th style={{ border: "1px solid #ccc" }}>tb</th>
                             </tr>
                         </thead>
 
@@ -384,13 +418,19 @@ function Game({ matchId }) {
                                             : match.player2Name}
                                     </td>
                                     <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.isFoul ? "F" : ""}
-                                    </td>
-                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
                                         {turn.score}
                                     </td>
                                     <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
+                                        {turn.isFoul ? turn.isContinusFoul ? "-15" : "-1" : ""}
+                                    </td>
+                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
                                         {turn.isSafty ? "S" : ""}
+                                    </td>
+                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
+                                        {turn.runningScore == 0 ? "" : "+" + turn.runningScore}
+                                    </td>
+                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
+                                        {turn.remainingBalls - 15}
                                     </td>
                                 </tr>
                             ))}
