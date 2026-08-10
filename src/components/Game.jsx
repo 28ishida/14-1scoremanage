@@ -58,7 +58,7 @@ function Game({ matchId }) {
     useEffect(() => {
         if (!matchId) return;
         const q = query(
-            collection(db, "turns"),
+            collection(db, "matches", matchId, "turns"),
             where("matchId", "==", matchId),
             orderBy("turnNo")
         );
@@ -113,23 +113,17 @@ function Game({ matchId }) {
     }
 
     // ファウル計算を含む最終スコア計算
-    function createFinalTurnScore(currentMatch, point) {
-        if ( !isFoul ) {
-            return point;
-        }
-        else
-        {
-            point -= 1;
-            if ( currentMatch.lastTurnNo > 4 ) {
-                const oneTimeAgoTurn = turns.find(turn => turn.turnNo === currentMatch.lastTurnNo - 1);
-                const twoTimesAgoTurn = turns.find(turn => turn.turnNo === currentMatch.lastTurnNo - 3);
+    function createFinalTurnScore(currentMatch, turnNum, point) {
 
-                if (oneTimeAgoTurn.isFoul && twoTimesAgoTurn.isFoul) {
-                    point -= 14;    // 追加で-14
-                }
+        point -= 1;
+        if (turnNum >= 4) {
+            const oneTimeAgoTurn = turns.find(turn => turn.turnNo === turnNum - 1);
+            const twoTimesAgoTurn = turns.find(turn => turn.turnNo === turnNum - 3);
+
+            if (oneTimeAgoTurn.isFoul && twoTimesAgoTurn.isFoul) {
+                point -= 14;    // 追加で-14
             }
         }
-        console.log("checkFoulScore: point = " + point);
         return point;
     }
 
@@ -162,7 +156,7 @@ function Game({ matchId }) {
             const newTurnNo = currentMatch.lastTurnNo + 1;
 
             // Turnを作成
-            const turnRef = doc(collection(db, "turns"));
+            const turnRef = doc(collection(db, "matches", currentMatch.id, "turns"));
             transaction.set(turnRef, {
                 matchId: currentMatch.id,
                 turnNo: currentMatch.lastTurnNo + 1,
@@ -178,10 +172,8 @@ function Game({ matchId }) {
             // 次のMatch状態を作成
             const nextState = createNextState(
                 currentState, 
-                createFinalTurnScore(currentMatch, point) 
+                !isFoul ? point : createFinalTurnScore(currentMatch, currentMatch.lastTurnNo + 1, point)
             );
-
-            console.log("nextState = ", nextState.player1Score);
 
             // 勝利判定
             const winner = judgeWinner(
@@ -195,14 +187,12 @@ function Game({ matchId }) {
                 remainingBalls: nextRemainingBalls,
                 status: winner.status,
                 winnerId: winner.winnerId,
-                lastTurnNo: newTurnNo,
+                lastTurnNo: currentMatch.lastTurnNo + 1, newTurnNo,
             });
         });
-        //setRemainingBalls("");
-    }
-
-    // undo
-    async function undoLastTurn() {
+        
+        setIsSafty(false);
+        setIsFoul(false);
     }
 
     // matchを再構築する
@@ -211,11 +201,9 @@ function Game({ matchId }) {
         // Match取得
         const matchRef = doc(db, "matches", matchId);
         const matchSnapshot = await getDoc(matchRef);
-
         if (!matchSnapshot.exists()) {
             throw new Error("Matchが存在しません");
         }
-
         const match = {
             id: matchSnapshot.id,
             ...matchSnapshot.data()
@@ -223,13 +211,11 @@ function Game({ matchId }) {
 
         // Turn取得
         const q = query(
-            collection(db, "turns"),
+            collection(db, "matches", matchId, "turns"),
             where("matchId", "==", matchId),
             orderBy("turnNo")
         );
-
         const turnSnapshot = await getDocs(q);
-
         const turns = turnSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
@@ -237,19 +223,22 @@ function Game({ matchId }) {
 
         let state = createInitialState(match);
         for (const turn of turns) {
-            state = createNextState(state, turn.score);
-        }
+            state = createNextState(
+                state, 
+                //createFinalTurnScore(match, turn.turnNo, turn.score)
+                !turn.isFoul ? turn.score : createFinalTurnScore(match, turn.turnNo, turn.score)
+            );
 
-        const winner = judgeWinner(match, state);
-        
-        await updateDoc(matchRef, {
-            player1Score: state.player1Score,
-            player2Score: state.player2Score,
-            currentPlayerId: state.currentPlayerId,
-            inning: state.inning,
-            status: winner.status,
-            winnerId: winner.winnerId
-        });
+            const winner = judgeWinner(match, state);
+            await updateDoc(matchRef, {
+                player1Score: state.player1Score,
+                player2Score: state.player2Score,
+                currentPlayerId: state.currentPlayerId,
+                inning: state.inning,
+                status: winner.status,
+                winnerId: winner.winnerId
+            });
+        }
     }
 
     return (
@@ -344,12 +333,6 @@ function Game({ matchId }) {
                 <button onClick={() => rebuildMatch(match.id)}>
                     Rebuild Test
                 </button>
-
-                <div>
-                    <button onClick={undoLastTurn}>
-                        Undo
-                    </button>
-                </div>
             </div>
 
             {
