@@ -21,7 +21,6 @@ function Game({ matchId }) {
 
     const [match, setMatch] = useState(null);
     const [players, setPlayers] = useState([]);
-    const [remainingBalls, setRemainingBalls] = useState("15");
     const [turns, setTurns] = useState([]);
     const [isSafty, setIsSafty] = useState(false);
     const [isFoul, setIsFoul] = useState(false);
@@ -74,15 +73,12 @@ function Game({ matchId }) {
         return unsubscribe;
     }, [matchId]);
 
-    const player1 =
-        players.find(p => p.id === match?.player1Id);
+    // 表示系で使ってる変数
+    const player1 = players.find(p => p.id === match?.player1Id);
+    const player2 = players.find(p => p.id === match?.player2Id);
+    const currentPlayer = players.find(p => p.id === match?.currentPlayerId);
 
-    const player2 =
-        players.find(p => p.id === match?.player2Id);
-
-    const currentPlayer =
-        players.find(p => p.id === match?.currentPlayerId);
-
+    // ラックまたいだ
     async function rackBalls() {
         // プレイ中じゃない試合は終了
         if (match.status !== "playing") {
@@ -110,8 +106,6 @@ function Game({ matchId }) {
                     currentRunningScore + (currentRemainingBalls - 1)
             });
         });
-
-        setRemainingBalls(15);
     }
 
     // 連続ファウルチェック
@@ -140,23 +134,8 @@ function Game({ matchId }) {
         return false;
     }
 
-    // ファウル計算を含む最終スコア計算
-    function createFinalTurnScore(currentMatch, turnNum, point) {
-
-        point -= 1;
-        if (turnNum >= 4) {
-            const oneTimeAgoTurn = turns.find(turn => turn.turnNo === turnNum - 1);
-            const twoTimesAgoTurn = turns.find(turn => turn.turnNo === turnNum - 3);
-
-            if (oneTimeAgoTurn.isFoul && twoTimesAgoTurn.isFoul) {
-                point -= 14;    // 追加で-14
-            }
-        }
-        return point;
-    }
-
-    // スコア登録
-    async function registerTurn() {
+    // ターン情報の登録 & マッチの更新
+    async function registerTurn(remainBallValue) {
         
         // プレイ中じゃない試合は即終了
         if (match.status !== "playing") { return; }
@@ -175,8 +154,12 @@ function Game({ matchId }) {
                 ...matchSnapshot.data()
             };
 
+            if ( remainBallValue == 0 ) {   // 今回落としてない
+                remainBallValue = currentMatch.remainingBalls;
+            }
+
             const currentRemainingBalls = currentMatch.remainingBalls;
-            const nextRemainingBalls = Number(remainingBalls);
+            const nextRemainingBalls = Number(remainBallValue);
             const currentRunningScore = currentMatch.runningScore;
             const point = currentRunningScore + currentRemainingBalls - nextRemainingBalls;
             const currentState = createCurrentState(currentMatch);
@@ -226,6 +209,8 @@ function Game({ matchId }) {
         
         setIsSafty(false);
         setIsFoul(false);
+
+
     }
 
     // matchを再構築する
@@ -291,17 +276,34 @@ function Game({ matchId }) {
                     {" / "}
                     {match?.player2WinningScore}
                 </div>
+
+                <div>
+                {
+                    match?.status === "win" && (
+                        <h2 style={{ color: "red" }}>
+                            🏆 Winner:
+                            {
+                                players.find(p => p.id === match.winnerId)?.name
+                            }
+                        </h2>
+                    )
+                }
+
+                {
+                    match?.status === "draw" && (
+                        <h2 style={{ color: "blue" }}>
+                            draw
+                        </h2>
+                    )
+                }
+                </div>
             </div>
 
             <div>
-                Match ID
+                MatchID : {match?.id}
             </div>
 
             <div>
-                {match?.id}
-            </div>
-
-            <div style={{ marginTop: "20px" }}>
                 Status :
                 {match?.status}
             </div>
@@ -317,44 +319,55 @@ function Game({ matchId }) {
             </div>
 
             <div style={{ marginTop: "30px" }}>
+                <h2>Input</h2>
+
                 <div>
-                    Remaining Ball :
+                    <div>
+                        Balls missing from the table : 
+                    </div>
+                    <button onClick={() => registerTurn(2)} disabled={match?.remainingBalls - 1 < 2}>-13</button>
+                    <button onClick={() => registerTurn(3)} disabled={match?.remainingBalls - 1 < 3}>-12</button>
+                    <button onClick={() => registerTurn(4)} disabled={match?.remainingBalls - 1 < 4}>-11</button>
+                    <button onClick={() => registerTurn(5)} disabled={match?.remainingBalls - 1 < 5}>-10</button>
+                    <button onClick={() => registerTurn(6)} disabled={match?.remainingBalls - 1 < 6}>-9</button>
+                    <button onClick={() => registerTurn(7)} disabled={match?.remainingBalls - 1 < 7}>-8</button>
+                    <button onClick={() => registerTurn(8)} disabled={match?.remainingBalls - 1 < 8}>-7</button>
+                    <button onClick={() => registerTurn(9)} disabled={match?.remainingBalls - 1 < 9}>-6</button>
+                    <button onClick={() => registerTurn(10)} disabled={match?.remainingBalls - 1 < 10}>-5</button>
+                    <button onClick={() => registerTurn(11)} disabled={match?.remainingBalls - 1 < 11}>-4</button>
+                    <button onClick={() => registerTurn(12)} disabled={match?.remainingBalls - 1 < 12}>-3</button>
+                    <button onClick={() => registerTurn(13)} disabled={match?.remainingBalls - 1 < 13}>-2</button>
+                    <button onClick={() => registerTurn(14)} disabled={match?.remainingBalls - 1 < 14}>-1</button>
+                    <button onClick={() => registerTurn(0)}>―</button>
                 </div>
-                <input
-                    type="number"
-                    value={remainingBalls}
-                    onChange={(e) => setRemainingBalls(e.target.value)}
-                    disabled={match?.status !== "playing"}
-                />
+
             </div>
 
-            <div style={{ marginTop: "20px" }}>
-                <button
-                    onClick={registerTurn}
-                    disabled={match?.status !== "playing" }
-                >
-                    Register Score
-                </button>
-                <button
-                    onClick={rackBalls}
-                >
-                    Rack
-                </button>
-                <div>
-                Safety :
-                <input
-                    type="checkbox"
-                    checked={isSafty}
-                    onChange={(e) => setIsSafty(e.target.checked)}
-                />
+            <div style={{ marginTop: "10px" }}>
+                <div style={{ display: "flex", justifyContent: "center", gap: "10px" }}>
+                    <button onClick={rackBalls}> Rack </button>
+                    Safety :
+                    <input
+                        type="checkbox"
+                        checked={isSafty}
+                        onChange={(e) => setIsSafty(e.target.checked)}
+                    />
+                    Foul:
+                    <input
+                        type="checkbox"
+                        checked={isFoul}
+                        onChange={(e) => setIsFoul(e.target.checked)}
+                    />
                 </div>
-                Foul:
-                <input
-                    type="checkbox"
-                    checked={isFoul}
-                    onChange={(e) => setIsFoul(e.target.checked)}
-                />
+                <div>
+                    <button onClick={() => rebuildMatch(match.id)}>
+                        Rebuild Test
+                    </button>
+                </div>                
+            </div>
 
+            <div style={{ marginTop: "30px" }}>
+                <h2>Table Condition</h2>
                 <div>
                     Remaining Balls : {match?.remainingBalls}
                 </div>
@@ -362,32 +375,11 @@ function Game({ matchId }) {
                 <div>
                     Running Score : {match?.runningScore}
                 </div>
-                <button onClick={() => rebuildMatch(match.id)}>
-                    Rebuild Test
-                </button>
             </div>
 
-            {
-                match?.status === "win" && (
-                    <h2 style={{ color: "red" }}>
-                        🏆 Winner:
-                        {
-                            players.find(p => p.id === match.winnerId)?.name
-                        }
-                    </h2>
-                )
-            }
 
-            {
-                match?.status === "draw" && (
-                    <h2 style={{ color: "blue" }}>
-                        draw
-                    </h2>
-                )
-            }
-
-            <div style={{ marginTop: "20px" }}>
-                <h3>SCORE</h3>
+            <div style={{ marginTop: "30px" }}>
+                <h3>Turn Score</h3>
                 {
                     <table style={{
                         width: "100%",
@@ -398,11 +390,11 @@ function Game({ matchId }) {
                             <tr>
                                 <th style={{ border: "1px solid #ccc" }}>No</th>
                                 <th style={{ border: "1px solid #ccc" }}>Player</th>
+                                <th style={{ border: "1px solid #ccc" }}>run</th>
                                 <th style={{ border: "1px solid #ccc" }}>Score</th>
-                                <th style={{ border: "1px solid #ccc" }}>Foul</th>
                                 <th style={{ border: "1px solid #ccc" }}>Safty</th>
-                                <th style={{ border: "1px solid #ccc" }}>RS</th>
-                                <th style={{ border: "1px solid #ccc" }}>tb</th>
+                                <th style={{ border: "1px solid #ccc" }}>Foul</th>
+                                <th style={{ border: "1px solid #ccc" }}>table</th>
                             </tr>
                         </thead>
 
@@ -418,19 +410,19 @@ function Game({ matchId }) {
                                             : match.player2Name}
                                     </td>
                                     <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.score}
+                                        {turn.runningScore == 0 ? "" : "+" + turn.runningScore}
                                     </td>
                                     <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.isFoul ? turn.isContinusFoul ? "-15" : "-1" : ""}
+                                        {turn.score}
                                     </td>
                                     <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
                                         {turn.isSafty ? "S" : ""}
                                     </td>
                                     <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.runningScore == 0 ? "" : "+" + turn.runningScore}
+                                        {turn.isFoul ? turn.isContinusFoul ? "-15" : "-1" : ""}
                                     </td>
                                     <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.remainingBalls - 15}
+                                        {turn.remainingBalls - 15 == 0 ? "" : turn.remainingBalls - 15}
                                     </td>
                                 </tr>
                             ))}
