@@ -21,9 +21,10 @@ function Game({ matchId }) {
 
     const [match, setMatch] = useState(null);
     const [players, setPlayers] = useState([]);
-    const [remainingBalls, setRemainingBalls] = useState("");
+    const [remainingBalls, setRemainingBalls] = useState("15");
     const [turns, setTurns] = useState([]);
-    const [tableSituation, setTableSituation] = useState("");
+    const [isSafty, setIsSafty] = useState(false);
+    const [isFoul, setIsFoul] = useState(false);
 
     useEffect(() => {
         const unsubscribe = onSnapshot(
@@ -101,16 +102,38 @@ function Game({ matchId }) {
             const currentRunningScore =
                 currentMatch.runningScore ?? 0;
 
-            setTableSituation("+");
-
             transaction.update(matchRef, {
                 remainingBalls: 15,
                 runningScore:
                     currentRunningScore + (currentRemainingBalls - 1)
             });
         });
-    }        
 
+        setRemainingBalls(15);
+    }
+
+    // ファウル計算を含む最終スコア計算
+    function createFinalTurnScore(currentMatch, point) {
+        if ( !isFoul ) {
+            return point;
+        }
+        else
+        {
+            point -= 1;
+            if ( currentMatch.lastTurnNo > 4 ) {
+                const oneTimeAgoTurn = turns.find(turn => turn.turnNo === currentMatch.lastTurnNo - 1);
+                const twoTimesAgoTurn = turns.find(turn => turn.turnNo === currentMatch.lastTurnNo - 3);
+
+                if (oneTimeAgoTurn.isFoul && twoTimesAgoTurn.isFoul) {
+                    point -= 14;    // 追加で-14
+                }
+            }
+        }
+        console.log("checkFoulScore: point = " + point);
+        return point;
+    }
+
+    // スコア登録
     async function registerTurn() {
         
         // プレイ中じゃない試合は即終了
@@ -134,12 +157,31 @@ function Game({ matchId }) {
             const nextRemainingBalls = Number(remainingBalls);
             const currentRunningScore = currentMatch.runningScore;
             const point = currentRunningScore + currentRemainingBalls - nextRemainingBalls;
+
             const currentState = createCurrentState(currentMatch);
+            const newTurnNo = currentMatch.lastTurnNo + 1;
+
+            // Turnを作成
+            const turnRef = doc(collection(db, "turns"));
+            transaction.set(turnRef, {
+                matchId: currentMatch.id,
+                turnNo: currentMatch.lastTurnNo + 1,
+                playerId: currentMatch.currentPlayerId,
+                inning: currentMatch.inning,
+                score: point,
+                remainingBalls: nextRemainingBalls,
+                createdAt: serverTimestamp(),
+                isSafty: isSafty,
+                isFoul: isFoul,
+            });
 
             // 次のMatch状態を作成
-            const nextState = createNextState(currentState, point);
-            
-            const newTurnNo = currentMatch.lastTurnNo + 1;
+            const nextState = createNextState(
+                currentState, 
+                createFinalTurnScore(currentMatch, point) 
+            );
+
+            console.log("nextState = ", nextState.player1Score);
 
             // 勝利判定
             const winner = judgeWinner(
@@ -147,17 +189,7 @@ function Game({ matchId }) {
                 nextState
             );
 
-            // Turnを作成
-            const shotRef = doc(collection(db, "turns"));
-            transaction.set(shotRef, {
-                matchId: currentMatch.id,
-                turnNo: newTurnNo,
-                playerId: currentMatch.currentPlayerId,
-                inning: currentMatch.inning,
-                score: point,
-                remainingBalls: nextRemainingBalls,
-                createdAt: serverTimestamp()
-            });
+            // Matchを更新
             transaction.update(matchRef, {
                 ...nextState,
                 remainingBalls: nextRemainingBalls,
@@ -166,8 +198,7 @@ function Game({ matchId }) {
                 lastTurnNo: newTurnNo,
             });
         });
-        setRemainingBalls("");
-        setTableSituation(remainingBalls-15);
+        //setRemainingBalls("");
     }
 
     // undo
@@ -289,6 +320,21 @@ function Game({ matchId }) {
                     Rack
                 </button>
                 <div>
+                Safety :
+                <input
+                    type="checkbox"
+                    checked={isSafty}
+                    onChange={(e) => setIsSafty(e.target.checked)}
+                />
+                </div>
+                Foul:
+                <input
+                    type="checkbox"
+                    checked={isFoul}
+                    onChange={(e) => setIsFoul(e.target.checked)}
+                />
+
+                <div>
                     Remaining Balls : {match?.remainingBalls}
                 </div>
 
@@ -325,138 +371,51 @@ function Game({ matchId }) {
                 )
             }
 
-            <div style={{ marginTop: "30px" }}>
-                <h3>Score Sheet</h3>
-                <table border="1" cellPadding="8">
-                    <thead>
-                        <tr>
-                            <th></th>
-                            {
-                                Array.from(
-                                    { length: match?.inning || 0 },
-                                    (_, index) => (
-                                        <th key={index}>
-                                            {index + 1}
-                                        </th>
-                                    )
-                                )
-                            }
-                        </tr>
-                    </thead>
+            <div style={{ marginTop: "20px" }}>
+                <h3>SCORE</h3>
+                {
+                    <table style={{
+                        width: "100%",
+                        maxwidth: "200px",
+                        borderCollapse: "collapse"
+                    }}>
+                        <thead>
+                            <tr>
+                                <th style={{ border: "1px solid #ccc" }}>No</th>
+                                <th style={{ border: "1px solid #ccc" }}>Player</th>
+                                <th style={{ border: "1px solid #ccc" }}>Foul</th>
+                                <th style={{ border: "1px solid #ccc" }}>Score</th>
+                                <th style={{ border: "1px solid #ccc" }}>Safty</th>
+                            </tr>
+                        </thead>
 
-                    <tbody>
-                        {/* Player 1 Score */}
-                        <tr>
-                            <th>
-                                {match?.player1Name}
-                            </th>
-
-                            {
-                                Array.from(
-                                    { length: match?.inning || 0 },
-                                    (_, index) => {
-                                        const inning = index + 1;
-
-                                        const turn = turns.find(
-                                            turn =>
-                                                turn.playerId === match.player1Id &&
-                                                turn.inning === inning
-                                        );
-
-                                        return (
-                                            <td key={inning}>
-                                                {turn?.score ?? ""}
-                                            </td>
-                                        );
-                                    }
-                                )
-                            }
-                        </tr>
-
-                        {/* Player 1 Remain */}
-                        <tr>
-                            <th>Table situation</th>
-                            {
-                                Array.from(
-                                    { length: match?.inning || 0 },
-                                    (_, index) => {
-                                        const inning = index + 1;
-
-                                        const turn = turns.find(
-                                            turn =>
-                                                turn.playerId === match.player1Id &&
-                                                turn.inning === inning
-                                        );
-
-                                        return (
-                                            <td key={inning}>
-                                                  {tableSituation}
-                                            </td>
-                                        );
-                                    }
-                                )
-                            }
-                        </tr>
-                        {/* Player 2 Score */}
-                        <tr>
-                            <th>
-                                {match?.player2Name}
-                            </th>
-
-                            {
-                                Array.from(
-                                    { length: match?.inning || 0 },
-                                    (_, index) => {
-                                        const inning = index + 1;
-
-                                        const turn = turns.find(
-                                            turn =>
-                                                turn.playerId === match.player2Id &&
-                                                turn.inning === inning
-                                        );
-
-                                        return (
-                                            <td key={inning}>
-                                                {turn?.score ?? ""}
-                                            </td>
-                                        );
-                                    }
-                                )
-                            }
-                        </tr>
-
-                        {/* Player 2 Remain */}
-                        <tr>
-                            <th>Table situation</th>
-
-                            {
-                                Array.from(
-                                    { length: match?.inning || 0 },
-                                    (_, index) => {
-                                        const inning = index + 1;
-
-                                        const turn = turns.find(
-                                            turn =>
-                                                turn.playerId === match.player2Id &&
-                                                turn.inning === inning
-                                        );
-
-                                        return (
-                                            <td key={inning}>
-                                                {turn?.remainingBalls != null ? `-${15 - turn.remainingBalls}` : ""}
-                                            </td>
-                                        );
-                                    }
-                                )
-                            }
-                        </tr>
-                    </tbody>
-                </table>
+                        <tbody>
+                            {turns.map((turn) => (
+                                <tr key={turn.id}>
+                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
+                                        {turn.turnNo}
+                                    </td>
+                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
+                                        {turn.playerId === match.player1Id
+                                            ? match.player1Name
+                                            : match.player2Name}
+                                    </td>
+                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
+                                        {turn.isFoul ? "F" : ""}
+                                    </td>
+                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
+                                        {turn.score}
+                                    </td>
+                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
+                                        {turn.isSafty ? "S" : ""}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>            
+                }
             </div>
         </div>
     );
 }
-
-//                                                  {turn?.remainingBalls != null ? `-${15 - turn.remainingBalls}` : ""}
-
 export default Game;
