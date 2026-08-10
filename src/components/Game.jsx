@@ -379,6 +379,87 @@ function Game({ matchId }) {
 
 
             <div style={{ marginTop: "30px" }}>
+                <h3>Score</h3>
+                {
+                    <table style={{
+                        width: "100%",
+                        maxwidth: "200px",
+                        borderCollapse: "collapse"
+                    }}>
+                        <thead>
+                            <tr>
+                                <th style={{ border: "1px solid #ccc" }}>Player</th>
+                                <th style={{ border: "1px solid #ccc" }}>1</th>
+                                <th style={{ border: "1px solid #ccc" }}>2</th>
+                                <th style={{ border: "1px solid #ccc" }}>3</th>
+                                <th style={{ border: "1px solid #ccc" }}>4</th>
+                                <th style={{ border: "1px solid #ccc" }}>5</th>
+                                <th style={{ border: "1px solid #ccc" }}>6</th>
+                                <th style={{ border: "1px solid #ccc" }}>7</th>
+                                <th style={{ border: "1px solid #ccc" }}>8</th>
+                                <th style={{ border: "1px solid #ccc" }}>9</th>
+                                <th style={{ border: "1px solid #ccc" }}>10</th>
+                                <th style={{ border: "1px solid #ccc" }}>11</th>
+                                <th style={{ border: "1px solid #ccc" }}>12</th>
+                                <th style={{ border: "1px solid #ccc" }}>13</th>
+                                <th style={{ border: "1px solid #ccc" }}>14</th>
+                                <th style={{ border: "1px solid #ccc" }}>15</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                                <tr>
+                                    <td>
+                                        {match?.player1Name}
+                                    </td>
+                                        {
+                                            turns.map((turn) => {
+                                                if (turn.playerId === match.player1Id) {
+                                                    return <td key={turn.id}>
+                                                        {turn.score}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
+                                                    </td>;
+                                                }
+                                                return null;
+                                            })
+                                        }
+                                </tr>
+                                <tr>
+                                    <td>
+                                        {match?.player2Name}
+                                    </td>
+                                        {
+                                            turns.map((turn) => {
+                                                if (turn.playerId === match.player2Id) {
+                                                    return <td key={turn.id}>
+                                                        {turn.score}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
+                                                    </td>;
+                                                }
+                                                return null;
+                                            })
+                                        }
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    {
+                                        turns.map((arg, index) => {
+                                            if ( index % 2 === 0 ) {
+                                                const first = turns[index];
+                                                const second = turns[index + 1];
+
+                                                return <td key={index}>
+                                                    {first?.remainingBalls - 15 == 0 ? "" : first?.remainingBalls - 15}
+                                                    {second ? (second?.remainingBalls - 15 == 0 ? "" : second?.remainingBalls - 15) : ""}
+                                                </td>;
+                                            }
+                                            return null;
+                                        })
+                                    }
+                                </tr>
+
+                       </tbody>
+                    </table>            
+                }
+
                 <h3>Turn Score</h3>
                 {
                     <table style={{
