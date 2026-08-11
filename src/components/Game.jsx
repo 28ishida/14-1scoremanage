@@ -107,7 +107,8 @@ function Game({ matchId }) {
                 runningScore: currentRunningScore + (currentRemainingBalls - 1)
             });
 
-            setTableCondition( tableCondition + currentRemainingBalls);
+            // テーブル状況更新
+            setTableCondition( tableCondition + " +" + Number(currentRunningScore + (currentRemainingBalls - 1)));
         });
     }
 
@@ -168,6 +169,9 @@ function Game({ matchId }) {
             const currentState = createCurrentState(currentMatch);
             const newTurnNo = currentMatch.lastTurnNo + 1;
             
+            // テーブル状況更新
+            setTableCondition( tableCondition + (nextRemainingBalls - 15));
+
             // 連続ファールチェック
             const isContinusFoul = checkContinusFaul( currentMatch.currentPlayerId, isFoul );
 
@@ -212,8 +216,6 @@ function Game({ matchId }) {
         
         setIsSafty(false);
         setIsFoul(false);
-
-
     }
 
     // matchを再構築する
@@ -370,18 +372,6 @@ function Game({ matchId }) {
             </div>
 
             <div style={{ marginTop: "30px" }}>
-                <h2>Table Condition</h2>
-                <div>
-                    Remaining Balls : {match?.remainingBalls}
-                </div>
-
-                <div>
-                    Running Score : {match?.runningScore}
-                </div>
-            </div>
-
-
-            <div style={{ marginTop: "30px" }}>
                 <h3>Score</h3>
                 {
                     <table style={{
@@ -412,107 +402,71 @@ function Game({ matchId }) {
 
                         <tbody>
                                 <tr>
-                                    <td>
-                                        {match?.player1Name}
+                                    <td
+                                        style={{
+                                            border: "1px solid #ccc",
+                                            textAlign: "center",
+                                            padding: "1px"
+                                        }}
+                                    >
+                                        {match?.player1Name} 
+                                        <br/>
+                                        {match?.player1WinningScore}
+
                                     </td>
                                         {
                                             turns.map((turn) => {
                                                 if (turn.playerId === match.player1Id) {
-                                                    return <td key={turn.id}>
+                                                    return <td key={turn.id}
+                                                                style={{
+                                                                    border: "1px solid #ccc",
+                                                                    textAlign: "center",
+                                                                    padding: "1px"
+                                                                }}                                                    
+                                                            >
                                                         {turn.score}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
+                                                        <br/>
+                                                        {match.player1Score}
                                                     </td>;
                                                 }
-                                                return null;
+                                                return "";
                                             })
                                         }
                                 </tr>
                                 <tr>
-                                    <td>
+                                    <td
+                                        style={{
+                                            border: "1px solid #ccc",
+                                            textAlign: "center",
+                                            padding: "1px"
+                                        }}                                   
+                                    >
                                         {match?.player2Name}
+                                        <br/>
+                                        {match?.player2WinningScore}
                                     </td>
                                         {
                                             turns.map((turn) => {
                                                 if (turn.playerId === match.player2Id) {
-                                                    return <td key={turn.id}>
+                                                    return <td key={turn.id}
+                                                                style={{
+                                                                    border: "1px solid #ccc",
+                                                                    textAlign: "center",
+                                                                    padding: "1px"
+                                                                }}>
                                                         {turn.score}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
+                                                        <br/>
+                                                        {match.player2Score}                                                        
                                                     </td>;
                                                 }
-                                                return null;
+                                                return "";
                                             })
                                         }
                                 </tr>
-                                <tr>
-                                    <td></td>
-                                    {
-                                        turns.map((arg, index) => {
-                                            if ( index % 2 === 0 ) {
-                                                const first = turns[index];
-                                                const second = turns[index + 1];
-
-                                                return <td key={index}>
-                                                    {first?.remainingBalls - 15 == 0 ? "" : first?.remainingBalls - 15}
-                                                    {second ? (second?.remainingBalls - 15 == 0 ? "" : second?.remainingBalls - 15) : ""}
-                                                </td>;
-                                            }
-                                            return null;
-                                        })
-                                    }
-                                </tr>
-
                        </tbody>
-                    </table>            
+                    </table>   
                 }
-
-                <h3>Turn Score</h3>
-                {
-                    <table style={{
-                        width: "100%",
-                        maxwidth: "200px",
-                        borderCollapse: "collapse"
-                    }}>
-                        <thead>
-                            <tr>
-                                <th style={{ border: "1px solid #ccc" }}>No</th>
-                                <th style={{ border: "1px solid #ccc" }}>Player</th>
-                                <th style={{ border: "1px solid #ccc" }}>run</th>
-                                <th style={{ border: "1px solid #ccc" }}>Score</th>
-                                <th style={{ border: "1px solid #ccc" }}>Safty</th>
-                                <th style={{ border: "1px solid #ccc" }}>Foul</th>
-                                <th style={{ border: "1px solid #ccc" }}>table</th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-                            {turns.map((turn) => (
-                                <tr key={turn.id}>
-                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.turnNo}
-                                    </td>
-                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.playerId === match.player1Id
-                                            ? match.player1Name
-                                            : match.player2Name}
-                                    </td>
-                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.runningScore == 0 ? "" : "+" + turn.runningScore}
-                                    </td>
-                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.score}
-                                    </td>
-                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.isSafty ? "S" : ""}
-                                    </td>
-                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.isFoul ? turn.isContinusFoul ? "-15" : "-1" : ""}
-                                    </td>
-                                    <td style={{ border: "1px solid #ccc", textAlign: "center" }}>
-                                        {turn.remainingBalls - 15 == 0 ? "" : turn.remainingBalls - 15}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>            
-                }
+                tableCondition : {tableCondition}         
             </div>
         </div>
     );
