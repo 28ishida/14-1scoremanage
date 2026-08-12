@@ -80,7 +80,7 @@ function Game({ matchId }) {
     const player2 = players.find(p => p.id === match?.player2Id);
     const currentPlayer = players.find(p => p.id === match?.currentPlayerId);
 
-    // ラックまたいだ
+    // ラック跨ぎ
     async function rackBalls() {
         // プレイ中じゃない試合は終了
         if (match.status !== "playing") {
@@ -99,16 +99,16 @@ function Game({ matchId }) {
             const currentRemainingBalls =
                 currentMatch.remainingBalls;
 
-            const currentRunningScore =
-                currentMatch.runningScore ?? 0;
+            const currentRunningPoint =
+                currentMatch.runningPoint ?? 0;
 
             transaction.update(matchRef, {
                 remainingBalls: 15,
-                runningScore: currentRunningScore + (currentRemainingBalls - 1)
+                runningPoint: currentRunningPoint + (currentRemainingBalls - 1)
             });
 
             // テーブル状況更新
-            setTableCondition( tableCondition + " +" + Number(currentRunningScore + (currentRemainingBalls - 1)));
+            setTableCondition( tableCondition + " +" + Number(currentRunningPoint + (currentRemainingBalls - 1)));
         });
     }
 
@@ -162,10 +162,9 @@ function Game({ matchId }) {
                 remainBallValue = currentMatch.remainingBalls;
             }
 
-            const currentRemainingBalls = currentMatch.remainingBalls;
             const nextRemainingBalls = Number(remainBallValue);
-            const currentRunningScore = currentMatch.runningScore;
-            const point = currentRunningScore + currentRemainingBalls - nextRemainingBalls;
+            const currentRunningPoint = currentMatch.runningPoint;
+            const point = currentRunningPoint + currentMatch.remainingBalls - nextRemainingBalls;
             const currentState = createCurrentState(currentMatch);
             const newTurnNo = currentMatch.lastTurnNo + 1;
             
@@ -182,12 +181,12 @@ function Game({ matchId }) {
                 turnNo: currentMatch.lastTurnNo + 1,
                 playerId: currentMatch.currentPlayerId,
                 inning: currentMatch.inning,
-                score: point,
+                point: point,
                 remainingBalls: nextRemainingBalls,
                 createdAt: serverTimestamp(),
                 isSafty: isSafty,
                 isFoul: isFoul,
-                runningScore: currentRunningScore,
+                runningPoint: currentRunningPoint,
                 isContinusFoul: isContinusFoul,
             });
 
@@ -248,7 +247,7 @@ function Game({ matchId }) {
         for (const turn of turns) {
             state = createNextState(
                 state, 
-                turn.isFoul ? turn.isContinusFoul ? turn.score - 15 : turn.score - 1 : turn.score
+                turn.isFoul ? turn.isContinusFoul ? turn.point - 15 : turn.point - 1 : turn.point
             );
 
             const winner = judgeWinner(match, state);
@@ -424,7 +423,7 @@ function Game({ matchId }) {
                                                                     padding: "1px"
                                                                 }}                                                    
                                                             >
-                                                        {turn.score}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
+                                                        {turn.point}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
                                                         <br/>
                                                         {match.player1Score}
                                                     </td>;
@@ -454,7 +453,7 @@ function Game({ matchId }) {
                                                                     textAlign: "center",
                                                                     padding: "1px"
                                                                 }}>
-                                                        {turn.score}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
+                                                        {turn.point}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
                                                         <br/>
                                                         {match.player2Score}                                                        
                                                     </td>;

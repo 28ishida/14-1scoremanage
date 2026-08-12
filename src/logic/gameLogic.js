@@ -11,7 +11,7 @@ export function createInitialState(match) {
         inning: 1,
         winnerId: null,
         status: "playing",
-        runningScore: 0,
+        runningPoint: 0,
         remainingBalls: 15,
     };
 }
@@ -26,7 +26,7 @@ export function createCurrentState(match) {
         player2Score: match.player2Score,
         currentPlayerId: match.currentPlayerId,
         inning: match.inning,
-        runningScore: match.runningScore ?? 0,
+        runningPoint: match.runningPoint ?? 0,
         remainingBalls: match.remainingBalls
     };
 }
@@ -57,7 +57,7 @@ export function createNextState(state, inputScore) {
         currentPlayerId: newCurrentPlayerId,
         inning: newInning,
         remainingBalls: state.remainingBalls,
-        runningScore: 0
+        runningPoint: 0
     };
 }
 
