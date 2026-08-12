@@ -22,12 +22,12 @@ function Game({ matchId }) {
     const [match, setMatch] = useState(null);
     const [players, setPlayers] = useState([]);
     const [turns, setTurns] = useState([]);
+    const [progress, setProgress] = useState([]);
     const [isSafty, setIsSafty] = useState(false);
     const [isFoul, setIsFoul] = useState(false);
     const [continusFoulCntP1, setContinusFoulCntP1] = useState(0);
     const [continusFoulCntP2, setContinusFoulCntP2] = useState(0);
     const [tableCondition, setTableCondition] = useState("");       // 表示用
-
 
     useEffect(() => {
         const unsubscribe = onSnapshot(
@@ -75,6 +75,23 @@ function Game({ matchId }) {
         return unsubscribe;
     }, [matchId]);
 
+    useEffect(() => {
+        if (!matchId) return;
+        const q = query(
+            collection(db, "matches", matchId, "progress"),
+            where("matchId", "==", matchId),
+            orderBy("progressNo")
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const list = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setProgress(list);
+        });
+        return unsubscribe;
+    }, [matchId]);
+
     // 表示系で使ってる変数
     const player1 = players.find(p => p.id === match?.player1Id);
     const player2 = players.find(p => p.id === match?.player2Id);
@@ -108,7 +125,7 @@ function Game({ matchId }) {
             });
 
             // テーブル状況更新
-            setTableCondition( tableCondition + " +" + Number(currentRunningPoint + (currentRemainingBalls - 1)));
+            registProgress( " +" + Number(currentRunningPoint + (currentRemainingBalls - 1)));
         });
     }
 
@@ -138,6 +155,19 @@ function Game({ matchId }) {
         return false;
     }
 
+    // 進行状況の登録
+    async function registProgress(progressValue) {
+        const progressRef = doc(collection(db, "matches", match.id, "progress"));
+        
+        await runTransaction(db, async (transaction) => {
+            transaction.set(progressRef, {
+                matchId: match.id,
+                progressNo: progress.length + 1,
+                value: progressValue,
+            });
+        });
+    }
+    
     // ターン情報の登録 & マッチの更新
     async function registerTurn(remainBallValue) {
         
@@ -168,11 +198,18 @@ function Game({ matchId }) {
             const currentState = createCurrentState(currentMatch);
             const newTurnNo = currentMatch.lastTurnNo + 1;
             
-            // テーブル状況更新
-            setTableCondition( tableCondition + (nextRemainingBalls - 15));
+            // テーブル状況更新 (remainBallが変更ない場合は更新しない仕様)
+            if ( nextRemainingBalls != currentMatch.remainingBalls) {
+                registProgress( (nextRemainingBalls - 15));
+            }
 
             // 連続ファールチェック
             const isContinusFoul = checkContinusFaul( currentMatch.currentPlayerId, isFoul );
+
+            let score = currentMatch.currentPlayerId === currentMatch.player1Id
+                ? currentMatch.player1Score
+                : currentMatch.player2Score;
+            score += isFoul ? isContinusFoul ? - 15 : - 1 : 0;
 
             // Turnを作成
             const turnRef = doc(collection(db, "matches", currentMatch.id, "turns"));
@@ -182,6 +219,7 @@ function Game({ matchId }) {
                 playerId: currentMatch.currentPlayerId,
                 inning: currentMatch.inning,
                 point: point,
+                score: score + point,
                 remainingBalls: nextRemainingBalls,
                 createdAt: serverTimestamp(),
                 isSafty: isSafty,
@@ -322,46 +360,49 @@ function Game({ matchId }) {
                 {match?.inning}
             </div>
 
+            
             <div style={{ marginTop: "30px" }}>
                 <h2>Input</h2>
-
                 <div>
                     <div>
                         Balls missing from the table : 
                     </div>
-                    <button onClick={() => registerTurn(2)} disabled={match?.remainingBalls - 1 < 2}>-13</button>
-                    <button onClick={() => registerTurn(3)} disabled={match?.remainingBalls - 1 < 3}>-12</button>
-                    <button onClick={() => registerTurn(4)} disabled={match?.remainingBalls - 1 < 4}>-11</button>
-                    <button onClick={() => registerTurn(5)} disabled={match?.remainingBalls - 1 < 5}>-10</button>
-                    <button onClick={() => registerTurn(6)} disabled={match?.remainingBalls - 1 < 6}>-9</button>
-                    <button onClick={() => registerTurn(7)} disabled={match?.remainingBalls - 1 < 7}>-8</button>
-                    <button onClick={() => registerTurn(8)} disabled={match?.remainingBalls - 1 < 8}>-7</button>
-                    <button onClick={() => registerTurn(9)} disabled={match?.remainingBalls - 1 < 9}>-6</button>
-                    <button onClick={() => registerTurn(10)} disabled={match?.remainingBalls - 1 < 10}>-5</button>
-                    <button onClick={() => registerTurn(11)} disabled={match?.remainingBalls - 1 < 11}>-4</button>
-                    <button onClick={() => registerTurn(12)} disabled={match?.remainingBalls - 1 < 12}>-3</button>
-                    <button onClick={() => registerTurn(13)} disabled={match?.remainingBalls - 1 < 13}>-2</button>
-                    <button onClick={() => registerTurn(14)} disabled={match?.remainingBalls - 1 < 14}>-1</button>
-                    <button onClick={() => registerTurn(0)}>―</button>
+                    <button onClick={rackBalls} disabled={match?.status !== "playing"}>Rack</button>
+                    <button onClick={() => registerTurn(2)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 2}>-13</button>
+                    <button onClick={() => registerTurn(3)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 3}>-12</button>
+                    <button onClick={() => registerTurn(4)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 4}>-11</button>
+                    <button onClick={() => registerTurn(5)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 5}>-10</button>
+                    <button onClick={() => registerTurn(6)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 6}>-9</button>
+                    <button onClick={() => registerTurn(7)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 7}>-8</button>
+                    <button onClick={() => registerTurn(8)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 8}>-7</button>
+                    <button onClick={() => registerTurn(9)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 9}>-6</button>
+                    <button onClick={() => registerTurn(10)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 10}>-5</button>
+                    <button onClick={() => registerTurn(11)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 11}>-4</button>
+                    <button onClick={() => registerTurn(12)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 12}>-3</button>
+                    <button onClick={() => registerTurn(13)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 13}>-2</button>
+                    <button onClick={() => registerTurn(14)} disabled={match?.status !== "playing" || match?.remainingBalls - 1 < 14}>-1</button>
+                    <button onClick={() => registerTurn(0)} disabled={match?.status !== "playing"}>―</button>
                 </div>
-
             </div>
 
             <div style={{ marginTop: "10px" }}>
                 <div style={{ display: "flex", justifyContent: "center", gap: "10px" }}>
-                    <button onClick={rackBalls}> Rack </button>
-                    Safety :
+                    <div>
                     <input
+                        disabled={match?.status !== "playing"}
                         type="checkbox"
                         checked={isSafty}
                         onChange={(e) => setIsSafty(e.target.checked)}
-                    />
-                    Foul:
+                    />Safety
+                    </div>
+                    <div>
                     <input
+                        disabled={match?.status !== "playing"}
                         type="checkbox"
                         checked={isFoul}
                         onChange={(e) => setIsFoul(e.target.checked)}
-                    />
+                    />Foul
+                    </div>
                 </div>
                 <div>
                     <button onClick={() => rebuildMatch(match.id)}>
@@ -369,7 +410,7 @@ function Game({ matchId }) {
                     </button>
                 </div>                
             </div>
-
+            
             <div style={{ marginTop: "30px" }}>
                 <h3>Score</h3>
                 {
@@ -425,7 +466,7 @@ function Game({ matchId }) {
                                                             >
                                                         {turn.point}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
                                                         <br/>
-                                                        {match.player1Score}
+                                                        {turn.score}
                                                     </td>;
                                                 }
                                                 return "";
@@ -455,7 +496,7 @@ function Game({ matchId }) {
                                                                 }}>
                                                         {turn.point}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
                                                         <br/>
-                                                        {match.player2Score}                                                        
+                                                        {turn.score}
                                                     </td>;
                                                 }
                                                 return "";
@@ -465,7 +506,10 @@ function Game({ matchId }) {
                        </tbody>
                     </table>   
                 }
-                tableCondition : {tableCondition}         
+                tableProgress : 
+                {
+                    progress.map(p => p.value).join(", ")
+                }
             </div>
         </div>
     );
