@@ -79,6 +79,21 @@ function Game({ matchId }) {
     const player2 = players.find(p => p.id === match?.player2Id);
     const currentPlayer = players.find(p => p.id === match?.currentPlayerId);
 
+    // turnを表示文字列に整形する
+    function formatTurn(turn) {
+        let result = turn.point.toString();
+
+        if (turn.isSafty) {
+            result += " S";
+        }
+
+        if (turn.isFoul) {
+            result += turn.isContinusFoul ? " -15" : " -1";
+        }
+
+        return result;
+    }
+
     // ラック跨ぎ
     async function rackBalls() {
         // プレイ中じゃない試合は終了
@@ -170,15 +185,12 @@ function Game({ matchId }) {
             // テーブル状況更新
             if ( nextRemainingBalls != currentMatch.remainingBalls) {
                 setTableCondition( tableCondition + ", " + (nextRemainingBalls - 15));
-            } else {
-               
-                if ( currentRunningPoint > 0 )
-                {
-                    // ラックを跨げなかった
-                    setTableCondition( tableCondition + " X" );
-                }
             }
-
+            else if ( currentRunningPoint > 0 )
+            {
+                // ラックを跨げなかった
+                setTableCondition( tableCondition + " X" );
+            }
 
             // 連続ファールチェック
             const isContinusFoul = checkContinusFaul( currentMatch.currentPlayerId, isFoul );
@@ -394,7 +406,7 @@ function Game({ matchId }) {
                 {
                     <table style={{
                         width: "100%",
-                        maxwidth: "200px",
+                        maxWidth: "1000px",
                         borderCollapse: "collapse"
                     }}>
                         <thead>
@@ -439,10 +451,19 @@ function Game({ matchId }) {
                                                                 style={{
                                                                     border: "1px solid #ccc",
                                                                     textAlign: "center",
-                                                                    padding: "1px"
+                                                                    padding: "2px",
+                                                                    width: "50px"
                                                                 }}                                                    
                                                             >
-                                                        {turn.point}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
+                                                        <input
+                                                            type="text"
+                                                            value={formatTurn(turn)}
+                                                            readOnly
+                                                            style={{ 
+                                                                width: "100%", 
+                                                                boxSizing: "border-box", 
+                                                                textAlign: "center" }}
+                                                        />
                                                         <br/>
                                                         {turn.score}
                                                     </td>;
@@ -470,9 +491,18 @@ function Game({ matchId }) {
                                                                 style={{
                                                                     border: "1px solid #ccc",
                                                                     textAlign: "center",
-                                                                    padding: "1px"
+                                                                    padding: "2px",
+                                                                    width: "50px",
                                                                 }}>
-                                                        {turn.point}{turn.isSafty ? " S" : ""}{turn.isFoul ? turn.isContinusFoul ? " -15" : " -1" : ""}
+                                                        <input
+                                                            type="text"
+                                                            value={formatTurn(turn)}
+                                                            readOnly
+                                                            style={{ 
+                                                                width: "100%", 
+                                                                boxSizing: "border-box", 
+                                                                textAlign: "center" }}
+                                                        />
                                                         <br/>
                                                         {turn.score}
                                                     </td>;
