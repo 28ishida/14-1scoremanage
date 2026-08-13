@@ -22,7 +22,6 @@ function Game({ matchId }) {
     const [match, setMatch] = useState(null);
     const [players, setPlayers] = useState([]);
     const [turns, setTurns] = useState([]);
-    const [progress, setProgress] = useState([]);
     const [isSafty, setIsSafty] = useState(false);
     const [isFoul, setIsFoul] = useState(false);
     const [continusFoulCntP1, setContinusFoulCntP1] = useState(0);
@@ -75,23 +74,6 @@ function Game({ matchId }) {
         return unsubscribe;
     }, [matchId]);
 
-    useEffect(() => {
-        if (!matchId) return;
-        const q = query(
-            collection(db, "matches", matchId, "progress"),
-            where("matchId", "==", matchId),
-            orderBy("progressNo")
-        );
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const list = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            setProgress(list);
-        });
-        return unsubscribe;
-    }, [matchId]);
-
     // 表示系で使ってる変数
     const player1 = players.find(p => p.id === match?.player1Id);
     const player2 = players.find(p => p.id === match?.player2Id);
@@ -125,7 +107,7 @@ function Game({ matchId }) {
             });
 
             // テーブル状況更新
-            registProgress( " +" + Number(currentRunningPoint + (currentRemainingBalls - 1)));
+            setTableCondition( tableCondition + " +" + Number(currentRunningPoint + (currentRemainingBalls - 1)));
         });
     }
 
@@ -153,19 +135,6 @@ function Game({ matchId }) {
             }
         }
         return false;
-    }
-
-    // 進行状況の登録
-    async function registProgress(progressValue) {
-        const progressRef = doc(collection(db, "matches", match.id, "progress"));
-        
-        await runTransaction(db, async (transaction) => {
-            transaction.set(progressRef, {
-                matchId: match.id,
-                progressNo: progress.length + 1,
-                value: progressValue,
-            });
-        });
     }
     
     // ターン情報の登録 & マッチの更新
@@ -198,10 +167,18 @@ function Game({ matchId }) {
             const currentState = createCurrentState(currentMatch);
             const newTurnNo = currentMatch.lastTurnNo + 1;
             
-            // テーブル状況更新 (remainBallが変更ない場合は更新しない仕様)
+            // テーブル状況更新
             if ( nextRemainingBalls != currentMatch.remainingBalls) {
-                registProgress( (nextRemainingBalls - 15));
+                setTableCondition( tableCondition + ", " + (nextRemainingBalls - 15));
+            } else {
+               
+                if ( currentRunningPoint > 0 )
+                {
+                    // ラックを跨げなかった
+                    setTableCondition( tableCondition + " X" );
+                }
             }
+
 
             // 連続ファールチェック
             const isContinusFoul = checkContinusFaul( currentMatch.currentPlayerId, isFoul );
@@ -248,6 +225,7 @@ function Game({ matchId }) {
                 status: winner.status,
                 winnerId: winner.winnerId,
                 lastTurnNo: currentMatch.lastTurnNo + 1, newTurnNo,
+                tableCondition : tableCondition,
             });
         });
         
@@ -506,10 +484,7 @@ function Game({ matchId }) {
                        </tbody>
                     </table>   
                 }
-                tableProgress : 
-                {
-                    progress.map(p => p.value).join(", ")
-                }
+                tableProgress : {tableCondition}
             </div>
         </div>
     );

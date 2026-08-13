@@ -92,6 +92,7 @@ function MatchStart({ onStart }) {
             maxInning: 15,
             createdAt: serverTimestamp(),
             lastTurnNo : 0,
+            tableCondition : "",
         });
 
         onStart(docRef.id);
