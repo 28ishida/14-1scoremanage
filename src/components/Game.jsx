@@ -28,9 +28,31 @@ function Game({ matchId }) {
     const [continusFoulCntP2, setContinusFoulCntP2] = useState(0);
     const [tableCondition, setTableCondition] = useState("");       // 表示用
 
+    // Matchの初回ロード
     useEffect(() => {
+        if (!matchId) return;
+        async function loadMatch() {
+            const matchRef = doc(db, "matches", matchId);
+            const snapshot = await getDoc(matchRef);
+            if (snapshot.exists()) {
+                const data = snapshot.data();
+                setMatch({
+                    id: snapshot.id,
+                    ...data
+                });
+                // 初回ロード時だけ取得
+                setTableCondition(data.tableCondition ?? "");
+            }
+        }
+        loadMatch();
+    }, [matchId]);
+
+    // Matchのリアルタイム更新
+    useEffect(() => {
+        if (!matchId) return;
+        const matchRef = doc(db, "matches", matchId);
         const unsubscribe = onSnapshot(
-            doc(db, "matches", matchId),
+            matchRef,
             (snapshot) => {
                 if (snapshot.exists()) {
                     setMatch({
@@ -394,11 +416,6 @@ function Game({ matchId }) {
                     />Foul
                     </div>
                 </div>
-                <div>
-                    <button onClick={() => rebuildMatch(match.id)}>
-                        Rebuild Test
-                    </button>
-                </div>                
             </div>
             
             <div style={{ marginTop: "30px" }}>
@@ -516,6 +533,15 @@ function Game({ matchId }) {
                 }
                 tableProgress : {tableCondition}
             </div>
+            <div>
+                <button onClick={() => rebuildMatch(match.id)}>
+                    Rebuild Test
+                </button>
+                <button onClick={() => rebuildMMode("")}>
+                    Rebuild Mode
+                </button>
+            </div>                
+
         </div>
     );
 }
