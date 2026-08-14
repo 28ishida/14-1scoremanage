@@ -312,6 +312,14 @@ function Game({ matchId }) {
         }
     }
 
+
+    // 再構築モードの有効化
+    const [rebuildModeEnabled, setRebuildModeEnabled] = useState(false);
+    async function rebuildMode()
+    {
+        setRebuildModeEnabled(true);
+    }
+
     return (
         <div>
             <h2>Match</h2>
@@ -475,7 +483,7 @@ function Game({ matchId }) {
                                                         <input
                                                             type="text"
                                                             value={formatTurn(turn)}
-                                                            readOnly
+                                                            readOnly={!rebuildModeEnabled}
                                                             style={{ 
                                                                 width: "100%", 
                                                                 boxSizing: "border-box", 
@@ -514,7 +522,7 @@ function Game({ matchId }) {
                                                         <input
                                                             type="text"
                                                             value={formatTurn(turn)}
-                                                            readOnly
+                                                            readOnly = {!rebuildModeEnabled}
                                                             style={{ 
                                                                 width: "100%", 
                                                                 boxSizing: "border-box", 
@@ -537,7 +545,7 @@ function Game({ matchId }) {
                 <button onClick={() => rebuildMatch(match.id)}>
                     Rebuild Test
                 </button>
-                <button onClick={() => rebuildMMode("")}>
+                <button onClick={() => rebuildMode("")}>
                     Rebuild Mode
                 </button>
             </div>                
